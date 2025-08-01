@@ -68,10 +68,10 @@ stage('Install APK & Launch App') {
             adb install -r app/build/outputs/apk/debug/app-debug.apk
 
             echo "Verifying installation..."
-            adb shell pm list packages | grep com.example.myapp || true
+            adb shell pm list packages | grep com.example.d4capp || true
 
             echo "Launching app..."
-            adb shell monkey -p com.example.myapp -c android.intent.category.LAUNCHER 1
+            adb shell monkey -p com.example.d4capp -c android.intent.category.LAUNCHER 1
         '''
     }
 }
