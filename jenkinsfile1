@@ -21,32 +21,50 @@ pipeline {
         }
 
         stage('Start Emulator & Install APK') {
-    steps {
-        sh '''
-            echo "Starting emulator in headless mode..."
-            nohup emulator -avd MyAVD -no-audio -no-window > /tmp/emulator.log 2>&1 &
+            steps {
+                sh '''
+                    echo "Starting emulator in headless mode..."
+                    nohup emulator -avd MyAVD -no-audio -no-window > /tmp/emulator.log 2>&1 &
+                    EMULATOR_PID=$!
 
-            echo "Waiting for emulator to boot..."
-            adb wait-for-device
+                    echo "Waiting for emulator to boot..."
+                    adb wait-for-device
 
-            # Check boot completion
-            boot_completed=""
-            until [[ "$boot_completed" == "1" ]]; do
-                boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-                echo "Boot completed: $boot_completed"
-                sleep 5
-            done
+                    echo "Checking boot completion status..."
+                    BOOT_COMPLETED=""
+                    ATTEMPTS=0
+                    MAX_ATTEMPTS=30
+                    while [ "$BOOT_COMPLETED" != "1" -a $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+                        BOOT_COMPLETED=$(adb shell getprop sys.boot_completed | tr -d '\r')
+                        echo "Attempt $ATTEMPTS: Boot completed = $BOOT_COMPLETED"
+                        sleep 5
+                        ATTEMPTS=$((ATTEMPTS+1))
+                    done
 
-            echo "Installing APK..."
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-        '''
-    }
-}
+                    if [ "$BOOT_COMPLETED" != "1" ]; then
+                        echo "Emulator failed to boot in time."
+                        exit 1
+                    fi
+
+                    echo "Installing APK..."
+                    adb install -r app/build/outputs/apk/debug/app-debug.apk
+                '''
+            }
+        }
 
         stage('Archive APK') {
             steps {
                 archiveArtifacts artifacts: '**/build/outputs/**/*.apk', fingerprint: true
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Stopping emulator (if running)..."
+            sh '''
+                adb emu kill || true
+            '''
         }
     }
 }
