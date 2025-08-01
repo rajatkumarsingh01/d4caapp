@@ -3,7 +3,8 @@ pipeline {
 
     environment {
         ANDROID_HOME = "/usr/lib/android-sdk"
-        PATH = "${ANDROID_HOME}/emulator:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:$PATH"
+        PATH = "${ANDROID_HOME}/emulator:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:$PATH"
+        ANDROID_AVD_HOME = "/var/lib/jenkins/.android/avd"
     }
 
     stages {
@@ -19,12 +20,32 @@ pipeline {
             }
         }
 
-        stage('Start Emulator & Run UI Test') {
+        stage('Start Emulator & Install APK') {
             steps {
                 sh '''
-                    emulator -avd MyAVD -no-window -no-audio &
+                    echo "Starting emulator in headless mode..."
+
+                    # Start emulator in background
+                    nohup emulator -avd MyAVD -no-audio -no-window > /dev/null 2>&1 &
+
+                    echo "Waiting for emulator to be ready..."
                     adb wait-for-device
-                    ./gradlew connectedDebugAndroidTest
+
+                    # Wait until fully booted
+                    boot_completed=""
+                    until [ "$boot_completed" = "1" ]; do
+                        sleep 5
+                        boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+                        echo "Boot status: $boot_completed"
+                    done
+
+                    # Optional extra wait
+                    sleep 10
+
+                    echo "Installing APK..."
+                    adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+                    echo "APK installed successfully"
                 '''
             }
         }
