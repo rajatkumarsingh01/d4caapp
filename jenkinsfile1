@@ -7,12 +7,6 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                git 'https://github.com/rajatkumarsingh01/d4caapp.git'
-            }
-        }
-
         stage('Build APK') {
             steps {
                 sh './gradlew assembleDebug'
