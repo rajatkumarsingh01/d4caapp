@@ -27,7 +27,10 @@ pipeline {
                     nohup emulator -avd MyAVD -no-audio -no-window > /tmp/emulator.log 2>&1 &
                     EMULATOR_PID=$!
 
-                    echo "Waiting for emulator to boot..."
+                    echo "Waiting 10 seconds to allow emulator startup..."
+                    sleep 10
+
+                    echo "Waiting for ADB to detect the emulator..."
                     adb wait-for-device
 
                     echo "Checking boot completion status..."
@@ -43,10 +46,11 @@ pipeline {
 
                     if [ "$BOOT_COMPLETED" != "1" ]; then
                         echo "Emulator failed to boot in time."
+                        cat /tmp/emulator.log
                         exit 1
                     fi
 
-                    echo "Installing APK..."
+                    echo "Device ready. Installing APK..."
                     adb install -r app/build/outputs/apk/debug/app-debug.apk
                 '''
             }
