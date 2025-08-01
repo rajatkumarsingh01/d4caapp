@@ -21,34 +21,27 @@ pipeline {
         }
 
         stage('Start Emulator & Install APK') {
-            steps {
-                sh '''
-                    echo "Starting emulator in headless mode..."
+    steps {
+        sh '''
+            echo "Starting emulator in headless mode..."
+            nohup emulator -avd MyAVD -no-audio -no-window > /tmp/emulator.log 2>&1 &
 
-                    # Start emulator in background
-                    nohup emulator -avd MyAVD -no-audio -no-window > /dev/null 2>&1 &
+            echo "Waiting for emulator to boot..."
+            adb wait-for-device
 
-                    echo "Waiting for emulator to be ready..."
-                    adb wait-for-device
+            # Check boot completion
+            boot_completed=""
+            until [[ "$boot_completed" == "1" ]]; do
+                boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+                echo "Boot completed: $boot_completed"
+                sleep 5
+            done
 
-                    # Wait until fully booted
-                    boot_completed=""
-                    until [ "$boot_completed" = "1" ]; do
-                        sleep 5
-                        boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-                        echo "Boot status: $boot_completed"
-                    done
-
-                    # Optional extra wait
-                    sleep 10
-
-                    echo "Installing APK..."
-                    adb install -r app/build/outputs/apk/debug/app-debug.apk
-
-                    echo "APK installed successfully"
-                '''
-            }
-        }
+            echo "Installing APK..."
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+        '''
+    }
+}
 
         stage('Archive APK') {
             steps {
