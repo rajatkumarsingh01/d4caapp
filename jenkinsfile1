@@ -61,11 +61,20 @@ pipeline {
             }
         }
 
-        stage('Install APK') {
-            steps {
-                sh 'adb install -r app/build/outputs/apk/debug/app-debug.apk'
-            }
-        }
+stage('Install APK & Launch App') {
+    steps {
+        sh '''
+            echo "Installing APK..."
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+            echo "Verifying installation..."
+            adb shell pm list packages | grep com.example.myapp || true
+
+            echo "Launching app..."
+            adb shell monkey -p com.example.myapp -c android.intent.category.LAUNCHER 1
+        '''
+    }
+}
 
         stage('Archive APK') {
             steps {
