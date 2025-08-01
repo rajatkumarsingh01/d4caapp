@@ -26,7 +26,7 @@ pipeline {
                     // Run emulator startup in a background process detached from Jenkins shell
                     sh """
                         echo "Launching emulator in background..."
-                        setsid emulator -avd MyAVD -no-audio -no-window -no-boot-anim -wipe-data > /tmp/emulator.log 2>&1 &
+                        setsid emulator -avd MyAVD -no-audio -no-boot-anim -wipe-data > /tmp/emulator.log 2>&1 &
                     """
                 }
             }
