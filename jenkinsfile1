@@ -23,11 +23,11 @@ pipeline {
         stage('Start Emulator') {
             steps {
                 script {
-                    // Run emulator startup in a background process detached from Jenkins shell
-                    sh """
-                        echo "Launching emulator in background..."
-                        setsid emulator -avd MyAVD -no-audio -no-boot-anim -wipe-data > /tmp/emulator.log 2>&1 &
-                    """
+                    sh '''
+                        echo "Launching emulator using Xvfb..."
+                        nohup xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" \
+                            emulator -avd MyAVD -no-audio -no-boot-anim -no-snapshot-save > /tmp/emulator.log 2>&1 &
+                    '''
                 }
             }
         }
@@ -61,20 +61,20 @@ pipeline {
             }
         }
 
-stage('Install APK & Launch App') {
-    steps {
-        sh '''
-            echo "Installing APK..."
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
+        stage('Install APK & Launch App') {
+            steps {
+                sh '''
+                    echo "Installing APK..."
+                    adb install -r app/build/outputs/apk/debug/app-debug.apk
 
-            echo "Verifying installation..."
-            adb shell pm list packages | grep com.example.d4capp || true
+                    echo "Verifying installation..."
+                    adb shell pm list packages | grep com.example.d4capp || true
 
-            echo "Launching app..."
-            adb shell monkey -p com.example.d4capp -c android.intent.category.LAUNCHER 1
-        '''
-    }
-}
+                    echo "Launching app..."
+                    adb shell monkey -p com.example.d4capp -c android.intent.category.LAUNCHER 1
+                '''
+            }
+        }
 
         stage('Archive APK') {
             steps {
