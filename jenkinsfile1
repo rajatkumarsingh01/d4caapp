@@ -20,41 +20,42 @@ pipeline {
             }
         }
 
-        stage('Start Emulator & Install APK') {
-            steps {
-                sh '''
-                    echo "Starting emulator in headless mode..."
-                    nohup emulator -avd MyAVD -no-audio -no-window > /tmp/emulator.log 2>&1 &
-                    EMULATOR_PID=$!
+stage('Start Emulator & Install APK') {
+    steps {
+        sh '''
+            echo "Starting emulator in headless mode..."
 
-                    echo "Waiting 10 seconds to allow emulator startup..."
-                    sleep 10
+            nohup emulator -avd MyAVD -no-audio -no-boot-anim -no-window -wipe-data > /tmp/emulator.log 2>&1 &
 
-                    echo "Waiting for ADB to detect the emulator..."
-                    adb wait-for-device
+            echo "Waiting for emulator to start..."
+            sleep 10
 
-                    echo "Checking boot completion status..."
-                    BOOT_COMPLETED=""
-                    ATTEMPTS=0
-                    MAX_ATTEMPTS=30
-                    while [ "$BOOT_COMPLETED" != "1" -a $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-                        BOOT_COMPLETED=$(adb shell getprop sys.boot_completed | tr -d '\r')
-                        echo "Attempt $ATTEMPTS: Boot completed = $BOOT_COMPLETED"
-                        sleep 5
-                        ATTEMPTS=$((ATTEMPTS+1))
-                    done
+            echo "Waiting for ADB to detect emulator..."
+            adb wait-for-device
 
-                    if [ "$BOOT_COMPLETED" != "1" ]; then
-                        echo "Emulator failed to boot in time."
-                        cat /tmp/emulator.log
-                        exit 1
-                    fi
+            echo "Checking if emulator booted completely..."
+            BOOT_COMPLETED=""
+            ATTEMPTS=0
+            MAX_ATTEMPTS=30
 
-                    echo "Device ready. Installing APK..."
-                    adb install -r app/build/outputs/apk/debug/app-debug.apk
-                '''
-            }
-        }
+            while [ "$BOOT_COMPLETED" != "1" -a $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+                BOOT_COMPLETED=$(adb shell getprop sys.boot_completed | tr -d '\r')
+                echo "Attempt $ATTEMPTS: Boot completed = $BOOT_COMPLETED"
+                sleep 5
+                ATTEMPTS=$((ATTEMPTS + 1))
+            done
+
+            if [ "$BOOT_COMPLETED" != "1" ]; then
+                echo "Emulator failed to boot in time."
+                cat /tmp/emulator.log
+                exit 1
+            fi
+
+            echo "Emulator booted successfully. Installing APK..."
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+        '''
+    }
+}
 
         stage('Archive APK') {
             steps {
