@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+
+    environment {
+        ANDROID_HOME = "/usr/lib/android-sdk"
+        PATH = "${ANDROID_HOME}/emulator:${ANDROID_HOME}/tools:${ANDROID_HOME}/platform-tools:$PATH"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/rajatkumarsingh01/d4caapp.git'
+            }
+        }
+
+        stage('Build APK') {
+            steps {
+                sh './gradlew assembleDebug'
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                sh './gradlew testDebugUnitTest'
+            }
+        }
+
+        stage('Start Emulator & Run UI Test') {
+            steps {
+                sh '''
+                    emulator -avd MyAVD -no-window -no-audio &
+                    adb wait-for-device
+                    ./gradlew connectedDebugAndroidTest
+                '''
+            }
+        }
+
+        stage('Archive APK') {
+            steps {
+                archiveArtifacts artifacts: '**/build/outputs/**/*.apk', fingerprint: true
+            }
+        }
+    }
+}
