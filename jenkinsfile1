@@ -8,6 +8,12 @@ pipeline {
     }
 
     stages {
+        stage('Prepare') {
+            steps {
+                sh 'chmod +x ./gradlew'
+            }
+        }
+
         stage('Build APK') {
             steps {
                 sh './gradlew assembleDebug'
@@ -20,60 +26,73 @@ pipeline {
             }
         }
 
-stage('Start Emulator') {
-    steps {
-        script {
-            sh '''
-                echo "Launching emulator with clean boot..."
-                nohup xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" \
-                    emulator -avd MyAVD -no-snapshot -no-snapshot-save -wipe-data -no-boot-anim -no-audio > /tmp/emulator.log 2>&1 &
-            '''
+        stage('Start Emulator') {
+            steps {
+                script {
+                    sh '''
+                        echo "Launching emulator with clean boot..."
+                        nohup xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" \
+                            emulator -avd MyAVD -no-snapshot -no-snapshot-save -wipe-data -no-boot-anim -no-audio > /tmp/emulator.log 2>&1 &
+                    '''
+                }
+            }
         }
-    }
-}
 
-stage('Wait for Emulator Boot') {
-    steps {
-        sh '''
-            echo "Waiting for ADB to detect emulator..."
-            adb wait-for-device
+        stage('Wait for Emulator Boot') {
+            steps {
+                sh '''
+                    echo "Waiting for emulator to connect..."
+                    adb wait-for-device
 
-            while adb get-state | grep -q 'offline'; do
-                echo "Device still offline, waiting..."
-                sleep 5
-            done
+                    ATTEMPTS=0
+                    MAX_ATTEMPTS=30
+                    BOOT_COMPLETED=""
 
-            echo "Checking if emulator booted completely..."
-            BOOT_COMPLETED=""
-            ATTEMPTS=0
-            MAX_ATTEMPTS=30
+                    while [ "$BOOT_COMPLETED" != "1" ] && [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+                        STATE=$(adb get-state)
+                        if [ "$STATE" != "device" ]; then
+                            echo "ADB state is $STATE, waiting..."
+                        fi
 
-            while [ "$BOOT_COMPLETED" != "1" -a $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-                BOOT_COMPLETED=$(adb shell getprop sys.boot_completed | tr -d '\r')
-                echo "Attempt $ATTEMPTS: Boot completed = $BOOT_COMPLETED"
-                sleep 5
-                ATTEMPTS=$((ATTEMPTS + 1))
-            done
+                        BOOT_COMPLETED=$(adb shell getprop sys.boot_completed | tr -d '\r')
+                        echo "Attempt $ATTEMPTS: sys.boot_completed = $BOOT_COMPLETED"
+                        sleep 5
+                        ATTEMPTS=$((ATTEMPTS + 1))
+                    done
 
-            if [ "$BOOT_COMPLETED" != "1" ]; then
-                echo "Emulator failed to boot in time."
-                cat /tmp/emulator.log
-                exit 1
-            fi
+                    if [ "$BOOT_COMPLETED" != "1" ]; then
+                        echo "Emulator did not boot completely in time."
+                        cat /tmp/emulator.log || true
+                        exit 1
+                    fi
 
-            echo "Emulator is ready."
-        '''
-    }
-}
+                    echo "Emulator is booted and ready."
+                '''
+            }
+        }
 
         stage('Install APK & Launch App') {
             steps {
                 sh '''
-                    echo "Installing APK..."
-                    adb install -r app/build/outputs/apk/debug/app-debug.apk
+                    APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 
-                    echo "Verifying installation..."
-                    adb shell pm list packages | grep com.example.d4capp || true
+                    if [ ! -f "$APK_PATH" ]; then
+                        echo "APK not found at $APK_PATH"
+                        exit 1
+                    fi
+
+                    echo "Installing APK..."
+                    adb install -r "$APK_PATH" || {
+                        echo "Install failed"
+                        exit 1
+                    }
+
+                    echo "Waiting for Package Manager to be ready..."
+                    sleep 5
+                    adb shell pm list packages | grep com.example.d4capp || {
+                        echo "App not installed properly"
+                        exit 1
+                    }
 
                     echo "Launching app..."
                     adb shell monkey -p com.example.d4capp -c android.intent.category.LAUNCHER 1
@@ -90,7 +109,7 @@ stage('Wait for Emulator Boot') {
 
     post {
         always {
-            echo "Stopping emulator (if running)..."
+            echo "Cleaning up emulator..."
             sh '''
                 adb emu kill || true
                 pkill -f "emulator -avd" || true
